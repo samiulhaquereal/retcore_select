@@ -34,10 +34,21 @@ Retcore Select is a highly versatile and themeable select component designed to 
 
 ## Installation
 
-Add this to your package's `pubspec.yaml` file:
-```
+### From pub.dev
+```yaml
 dependencies:
-  retcore_select: 
+  retcore_select: ^0.1.0
+```
+
+### From GitHub (Latest Version)
+If you want to use the bleeding-edge version or test before it's published to `pub.dev`, you can reference the GitHub repository directly:
+
+```yaml
+dependencies:
+  retcore_select:
+    git:
+      url: https://github.com/samiulhaquereal/retcore_select.git
+      ref: master # or a specific branch/commit hash
 ```
 
 ## Theme
