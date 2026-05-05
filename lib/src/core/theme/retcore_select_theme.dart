@@ -25,10 +25,15 @@ class RetCoreSelectTheme {
   final OutlinedBorder? chipShape;
 
   /// --- Dropdown Items ---
+  final Color? dropdownBackgroundColor;
   final Color? dropdownItemSelectedColor;
+  final Color? dropdownItemHoverColor;
   final TextStyle? dropdownItemStyle;
   final TextStyle? dropdownSelectedItemStyle;
   final IconThemeData? checkIconTheme;
+
+  /// --- Separator (between clear icon and arrow) ---
+  final Color? separatorColor;
 
   /// --- Search Field in Dropdown ---
   final TextStyle? searchHintStyle;
@@ -62,10 +67,13 @@ class RetCoreSelectTheme {
     this.chipDeleteIconColor,
     this.chipPadding,
     this.chipShape,
+    this.dropdownBackgroundColor,
     this.dropdownItemSelectedColor,
+    this.dropdownItemHoverColor,
     this.dropdownItemStyle,
     this.dropdownSelectedItemStyle,
     this.checkIconTheme,
+    this.separatorColor,
     this.searchHintStyle,
     this.searchIconTheme,
     this.searchFieldDecoration,
@@ -94,10 +102,13 @@ class RetCoreSelectTheme {
     Color? chipDeleteIconColor,
     EdgeInsets? chipPadding,
     OutlinedBorder? chipShape,
+    Color? dropdownBackgroundColor,
     Color? dropdownItemSelectedColor,
+    Color? dropdownItemHoverColor,
     TextStyle? dropdownItemStyle,
     TextStyle? dropdownSelectedItemStyle,
     IconThemeData? checkIconTheme,
+    Color? separatorColor,
     TextStyle? searchHintStyle,
     IconThemeData? searchIconTheme,
     InputDecoration? searchFieldDecoration,
@@ -124,12 +135,17 @@ class RetCoreSelectTheme {
       chipDeleteIconColor: chipDeleteIconColor ?? this.chipDeleteIconColor,
       chipPadding: chipPadding ?? this.chipPadding,
       chipShape: chipShape ?? this.chipShape,
+      dropdownBackgroundColor:
+          dropdownBackgroundColor ?? this.dropdownBackgroundColor,
       dropdownItemSelectedColor:
           dropdownItemSelectedColor ?? this.dropdownItemSelectedColor,
+      dropdownItemHoverColor:
+          dropdownItemHoverColor ?? this.dropdownItemHoverColor,
       dropdownItemStyle: dropdownItemStyle ?? this.dropdownItemStyle,
       dropdownSelectedItemStyle:
           dropdownSelectedItemStyle ?? this.dropdownSelectedItemStyle,
       checkIconTheme: checkIconTheme ?? this.checkIconTheme,
+      separatorColor: separatorColor ?? this.separatorColor,
       searchHintStyle: searchHintStyle ?? this.searchHintStyle,
       searchIconTheme: searchIconTheme ?? this.searchIconTheme,
       searchFieldDecoration:

@@ -11,8 +11,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Retcore Select Example',
-      theme: ThemeData(primarySwatch: Colors.deepPurple, useMaterial3: true),
+      title: 'RetCore Select Example',
+      theme: ThemeData(
+        colorSchemeSeed: Colors.deepPurple,
+        useMaterial3: true,
+      ),
       home: const ExampleScreen(),
     );
   }
@@ -26,9 +29,11 @@ class ExampleScreen extends StatefulWidget {
 }
 
 class _ExampleScreenState extends State<ExampleScreen> {
-  // --- State for our examples ---
   String? _singleValue;
+  String? _singleCreatableValue;
   List<String> _multiValues = [];
+  List<String> _fixedValues = ['Flutter', 'React'];
+  List<String> _creatableValues = [];
 
   final List<String> _options = [
     'Flutter',
@@ -40,10 +45,24 @@ class _ExampleScreenState extends State<ExampleScreen> {
     'Backbone',
   ];
 
+  List<String> _singleCreatableOptions = [
+    'Flutter',
+    'React',
+    'Vue',
+    'Angular',
+  ];
+
+  List<String> _creatableOptions = [
+    'Flutter',
+    'React',
+    'Vue',
+    'Angular',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Retcore Select Example')),
+      appBar: AppBar(title: const Text('RetCore Select Example')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Center(
@@ -52,56 +71,115 @@ class _ExampleScreenState extends State<ExampleScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '1. Single Select',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
+                // ───────────────────────────────────────────────────────
+                // 1. Single Select (with inline search)
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('1. Single Select with Inline Search'),
                 RetCoreSelect<String>(
                   label: 'Select a framework',
                   options: _options,
+                  isSearchable: true,
+                  isClearable: true,
                   value: _singleValue,
-                  onChanged: (newValue) {
+                  onChanged: (v) => setState(() => _singleValue = v),
+                ),
+
+                const SizedBox(height: 32),
+
+                _sectionTitle('2. Single Select - Creatable'),
+                RetCoreSelect<String>(
+                  label: 'Single selection with create',
+                  options: _singleCreatableOptions,
+                  isSearchable: true,
+                  isClearable: true,
+                  isCreatable: true,
+                  value: _singleCreatableValue,
+                  onChanged: (v) => setState(() => _singleCreatableValue = v),
+                  onCreateOption: (label) {
                     setState(() {
-                      _singleValue = newValue;
+                      _singleCreatableOptions.add(label);
+                      _singleCreatableValue = label;
                     });
                   },
                 ),
 
                 const SizedBox(height: 32),
 
-                const Text(
-                  '2. Multi-Select with Search',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
+                // ───────────────────────────────────────────────────────
+                // 3. Multi-Select (inline search, clearable)
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('3. Multi-Select with Inline Search'),
                 RetCoreSelect<String>(
-                  label: 'Select your favorite skills',
-                  placeholder: 'You can select multiple...',
+                  label: 'Select your favorite frameworks',
+                  placeholder: 'Select...',
                   options: _options,
                   isMulti: true,
                   isSearchable: true,
                   isClearable: true,
                   values: _multiValues,
-                  onValuesChanged: (newValues) {
+                  onValuesChanged: (v) => setState(() => _multiValues = v),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ───────────────────────────────────────────────────────
+                // 3. Fixed Options  (react-select "fixed-options" demo)
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('3. Fixed Options (Cannot Be Removed)'),
+                Text(
+                  '"Flutter" and "React" are pinned — they cannot be cleared.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                RetCoreSelect<String>(
+                  label: 'Select frameworks',
+                  options: _options,
+                  isMulti: true,
+                  isSearchable: true,
+                  isClearable: true,
+                  fixedOptions: const ['Flutter', 'React'],
+                  values: _fixedValues,
+                  onValuesChanged: (v) => setState(() => _fixedValues = v),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ───────────────────────────────────────────────────────
+                // 4. Creatable (type a new option and press Enter/select)
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('4. Creatable — Type to Add New Options'),
+                RetCoreSelect<String>(
+                  label: 'Add your stack',
+                  options: _creatableOptions,
+                  isMulti: true,
+                  isSearchable: true,
+                  isClearable: true,
+                  isCreatable: true,
+                  values: _creatableValues,
+                  onValuesChanged: (v) =>
+                      setState(() => _creatableValues = v),
+                  onCreateOption: (label) {
                     setState(() {
-                      _multiValues = newValues;
+                      _creatableOptions.add(label);
+                      _creatableValues.add(label);
                     });
                   },
                 ),
 
                 const SizedBox(height: 32),
 
-                const Text(
-                  '3. Disabled State',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
+                // ───────────────────────────────────────────────────────
+                // 5. Disabled State
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('5. Disabled State'),
                 RetCoreSelect<String>(
                   label: 'Disabled field',
                   isDisabled: true,
                   options: _options,
                   isMulti: true,
+                  fixedOptions: const ['Flutter', 'React'],
                   values: const ['Flutter', 'React'],
                   onValuesChanged: (v) {},
                 ),
@@ -109,6 +187,16 @@ class _ExampleScreenState extends State<ExampleScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }

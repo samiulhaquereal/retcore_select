@@ -9,6 +9,10 @@ typedef CustomChipBuilder<T> =
 class CustomSelectBase<T> extends StatefulWidget {
   final List<T> options;
   final List<T> value;
+
+  /// Items in this list cannot be removed by the user (react-select "fixed" options).
+  final List<T> fixedOptions;
+
   final String placeholder;
   final String? label;
   final bool isMulti,
@@ -17,17 +21,22 @@ class CustomSelectBase<T> extends StatefulWidget {
       isClearable,
       isFromApi,
       isLoading,
-      isRequired;
+      isRequired,
+      isCreatable;
   final RetCoreSelectTheme theme;
   final CustomChipBuilder<T>? chipBuilder;
   final FormFieldValidator<List<T>>? validator;
   final Function(List<T> newValue) onChanged;
   final Function(String query)? onSearch;
 
+  /// Called when the user creates a new option (only when [isCreatable] is true).
+  final Function(String label)? onCreateOption;
+
   const CustomSelectBase({
     super.key,
     required this.options,
     required this.value,
+    this.fixedOptions = const [],
     required this.placeholder,
     this.label,
     required this.isMulti,
@@ -37,10 +46,12 @@ class CustomSelectBase<T> extends StatefulWidget {
     required this.isFromApi,
     required this.isLoading,
     required this.isRequired,
+    this.isCreatable = false,
     required this.theme,
     this.chipBuilder,
     required this.onChanged,
     this.onSearch,
+    this.onCreateOption,
     this.validator,
   });
 
@@ -52,65 +63,83 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   final LayerLink _layerLink = LayerLink();
   final GlobalKey<FormFieldState<List<T>>> _formFieldKey =
       GlobalKey<FormFieldState<List<T>>>();
-  TextEditingController? _searchController;
-  FocusNode? _searchFocusNode;
+
+  // The inline search field embedded in the trigger box
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+
   OverlayEntry? _overlayEntry;
   Debouncer? _debouncer;
   List<T> _filteredOptions = [];
   bool _isOverlayVisible = false;
+
+  // Tracks which dropdown item is hovered (by index)
+  int? _hoveredIndex;
+
   RetCoreSelectTheme get theme => widget.theme;
 
   @override
   void initState() {
     super.initState();
     _filteredOptions = widget.options;
-    if (widget.isSearchable) {
-      _searchController = TextEditingController();
-      _searchFocusNode = FocusNode();
-      _searchController!.addListener(_onSearchChanged);
-      if (widget.isFromApi) _debouncer = Debouncer(milliseconds: 500);
-    }
+    _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(_onFocusChanged);
+    if (widget.isFromApi) _debouncer = Debouncer(milliseconds: 500);
   }
 
   @override
   void dispose() {
-    if (widget.isSearchable) {
-      _searchController?.removeListener(_onSearchChanged);
-      _searchController?.dispose();
-      _searchFocusNode?.dispose();
-    }
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _searchFocusNode.removeListener(_onFocusChanged);
+    _searchFocusNode.dispose();
     _debouncer?.dispose();
-    _hideOverlay();
+    _removeOverlay();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(CustomSelectBase<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.options != oldWidget.options) _filteredOptions = widget.options;
+    if (widget.options != oldWidget.options) {
+      _filteredOptions = widget.options;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _overlayEntry?.markNeedsBuild();
     });
   }
 
+  void _onFocusChanged() {
+    if (!_searchFocusNode.hasFocus && _isOverlayVisible) {
+      // Small delay so tap-on-item registers before overlay hides
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted && !_searchFocusNode.hasFocus) _hideOverlay();
+      });
+    } else if (_searchFocusNode.hasFocus && !_isOverlayVisible) {
+      _showOverlay();
+    }
+  }
+
   void _onSearchChanged() {
-    final query = _searchController!.text;
+    final query = _searchController.text;
+    // If creatable/searchable and user is typing, ensure the overlay is open
+    if (!_isOverlayVisible && query.isNotEmpty) {
+      _showOverlay();
+    }
     if (widget.isFromApi) {
       _debouncer?.run(() {
         if (widget.onSearch != null) widget.onSearch!(query);
       });
     } else {
-      setState(
-        () =>
-            _filteredOptions =
-                widget.options
-                    .where(
-                      (o) => o.toString().toLowerCase().contains(
-                        query.toLowerCase(),
-                      ),
-                    )
-                    .toList(),
-      );
+      setState(() {
+        _filteredOptions =
+            widget.options
+                .where(
+                  (o) =>
+                      o.toString().toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
+      });
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _overlayEntry?.markNeedsBuild();
@@ -119,54 +148,95 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _toggleOverlay() {
     if (widget.isDisabled) return;
-    setState(() => _isOverlayVisible ? _hideOverlay() : _showOverlay());
+    // If the inline search field already has focus, don't toggle —
+    // this avoids a race where GestureDetector closes what the TextField just opened.
+    if (_searchFocusNode.hasFocus) return;
+    if (_isOverlayVisible) {
+      _searchFocusNode.unfocus();
+    } else {
+      _searchFocusNode.requestFocus();
+    }
+  }
+
+  /// Determine whether the dropdown should open above or below.
+  bool _shouldOpenUpward(RenderBox renderBox, double dropdownHeight) {
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final spaceBelow = screenHeight - position.dy - renderBox.size.height;
+    return spaceBelow < dropdownHeight && position.dy > dropdownHeight;
   }
 
   void _showOverlay() {
     if (_isOverlayVisible) return;
-    _isOverlayVisible = true;
+    setState(() => _isOverlayVisible = true);
+
     final renderBox = context.findRenderObject() as RenderBox;
     final size = renderBox.size;
+    const dropdownMaxHeight = 250.0;
+
+    final openUpward = _shouldOpenUpward(renderBox, dropdownMaxHeight);
+
     _overlayEntry = OverlayEntry(
-      builder: (context) {
+      builder: (overlayContext) {
         return Stack(
           children: [
+            // Background tap-to-close layer
             Positioned.fill(
               child: GestureDetector(
-                onTap: _toggleOverlay,
+                onTap: _hideOverlay,
                 behavior: HitTestBehavior.translucent,
               ),
             ),
+            // The dropdown panel
             CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
-              offset: Offset(0.0, size.height + 4.0),
-              child: Material(
-                elevation: 4.0,
-                borderRadius: BorderRadius.circular(8.0),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: size.width,
-                    maxHeight: 250,
-                  ),
-                  child: _buildOptionsList(),
-                ),
+              targetAnchor:
+                  openUpward ? Alignment.topLeft : Alignment.bottomLeft,
+              followerAnchor:
+                  openUpward ? Alignment.bottomLeft : Alignment.topLeft,
+              offset: Offset(
+                0.0,
+                openUpward ? -4.0 : 4.0,
               ),
+              child: Material(
+                  elevation: 8.0,
+                  borderRadius: BorderRadius.circular(4.0),
+                  color:
+                      theme.dropdownBackgroundColor ??
+                      Theme.of(context).colorScheme.surface,
+                  shadowColor: Colors.black26,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: size.width,
+                      minWidth: size.width,
+                      maxHeight: dropdownMaxHeight,
+                    ),
+                    child: _buildOptionsList(),
+                  ),
+                ),
             ),
           ],
         );
       },
     );
     Overlay.of(context).insert(_overlayEntry!);
-    if (widget.isSearchable) _searchFocusNode?.requestFocus();
   }
 
   void _hideOverlay() {
     if (!_isOverlayVisible) return;
+    _removeOverlay();
+    setState(() {
+      _isOverlayVisible = false;
+      _hoveredIndex = null;
+    });
+    _searchController.clear();
+    _filteredOptions = widget.options;
+  }
+
+  void _removeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    _isOverlayVisible = false;
-    _searchController?.clear();
   }
 
   void _onOptionSelected(T option) {
@@ -174,191 +244,387 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     if (widget.isMulti) {
       newValue = List.from(widget.value);
       if (newValue.contains(option)) {
-        newValue.remove(option);
+        // Don't remove if it's a fixed option
+        if (!widget.fixedOptions.contains(option)) {
+          newValue.remove(option);
+        }
       } else {
         newValue.add(option);
       }
     } else {
       newValue = [option];
-      _toggleOverlay();
+      _hideOverlay();
+      _searchFocusNode.unfocus();
     }
-    // FIX: Update the FormField's state
     _formFieldKey.currentState?.didChange(newValue);
     widget.onChanged(newValue);
+    _searchController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _overlayEntry?.markNeedsBuild();
+    });
   }
 
   void _onChipDeleted(T option) {
+    // Don't allow deleting fixed options
+    if (widget.fixedOptions.contains(option)) return;
     if (widget.isMulti) {
       List<T> newValue = List.from(widget.value);
       newValue.remove(option);
-      // FIX: Update the FormField's state
       _formFieldKey.currentState?.didChange(newValue);
       widget.onChanged(newValue);
     }
   }
 
   void _clearSelection() {
-    final newValue = <T>[];
-
-    // FIX: Update the FormField's state
+    // Keep fixed options when clearing
+    final newValue = List<T>.from(widget.fixedOptions);
     _formFieldKey.currentState?.didChange(newValue);
     widget.onChanged(newValue);
   }
 
-  Widget _buildValueDisplay() {
-    if (widget.isMulti && widget.value.isNotEmpty) {
-      return AbsorbPointer(
-        absorbing: widget.isDisabled,
-        child: Wrap(
-          spacing: 6.0,
-          runSpacing: 6.0,
-          children:
-              widget.value.map((option) {
-                onDeleted() => _onChipDeleted(option);
-                if (widget.chipBuilder != null) {
-                  return widget.chipBuilder!(context, option, onDeleted);
-                }
-                return Chip(
-                  label: Text(option.toString(), style: theme.chipLabelStyle),
-                  padding: theme.chipPadding,
-                  onDeleted: onDeleted,
-                  deleteIconColor: theme.chipDeleteIconColor,
-                  backgroundColor: theme.chipBackgroundColor,
-                  shape: theme.chipShape,
-                );
-              }).toList(),
-        ),
-      );
+  void _createOption() {
+    final label = _searchController.text.trim();
+    if (label.isEmpty) return;
+    widget.onCreateOption?.call(label);
+    _searchController.clear();
+    if (!widget.isMulti) {
+      // Single-select: close dropdown after creating, just like selecting an option
+      _hideOverlay();
+      _searchFocusNode.unfocus();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _overlayEntry?.markNeedsBuild();
+      });
     }
-    if (!widget.isMulti && widget.value.isNotEmpty) {
+  }
+
+  /// Builds the chips + inline search field inside the trigger box.
+  Widget _buildValueDisplay() {
+    final bool hasValue = widget.value.isNotEmpty;
+    final bool canSearch = widget.isSearchable || widget.isCreatable;
+
+    // --- Single select ---
+    if (!widget.isMulti) {
+      // When the dropdown is OPEN, always show the search input so the user
+      // can type to filter or create — this matches react-select behaviour.
+      if (_isOverlayVisible && canSearch) {
+        return _buildInlineSearch(
+          showPlaceholder: !hasValue,
+          // Show the current value as grayed hint so user knows what's selected
+          hintText: hasValue ? widget.value.first.toString() : null,
+        );
+      }
+      // Dropdown closed with a value → show the selected text
+      if (hasValue) {
+        return Text(
+          widget.value.first.toString(),
+          style: theme.valueStyle,
+          overflow: TextOverflow.ellipsis,
+        );
+      }
+      // Dropdown closed, no value, searchable/creatable → show inline search
+      if (canSearch) {
+        return _buildInlineSearch(showPlaceholder: true);
+      }
+      // Dropdown closed, no value, not searchable → show placeholder text
       return Text(
-        widget.value.first.toString(),
-        style: theme.valueStyle,
+        widget.label == null ? widget.placeholder : '',
+        style: theme.placeholderStyle,
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
       );
     }
-    return Text(
-      widget.label == null ? widget.placeholder : '',
-      style: theme.placeholderStyle,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
 
-  Widget _buildOptionsList() {
-    final optionsToShow = widget.isFromApi ? widget.options : _filteredOptions;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    // --- Multi select ---
+    return Wrap(
+      spacing: 4.0,
+      runSpacing: 4.0,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        ...widget.value.map((option) {
+          final bool isFixed = widget.fixedOptions.contains(option);
+          onDeleted() => _onChipDeleted(option);
+          if (widget.chipBuilder != null) {
+            return widget.chipBuilder!(
+              context,
+              option,
+              isFixed ? null : onDeleted,
+            );
+          }
+          return _buildChip(option, isFixed, onDeleted);
+        }),
         if (widget.isSearchable)
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              decoration: InputDecoration(
-                hintText: 'Search...',
-                hintStyle: theme.searchHintStyle,
-                prefixIcon: Icon(
-                  Icons.search,
-                  size: widget.theme.searchIconTheme?.size,
-                  color: widget.theme.searchIconTheme?.color,
-                ),
-                isDense: true,
-                border:
-                    theme.decoration?.border ??
-                    OutlineInputBorder(
-                      borderRadius:
-                          widget.theme.fieldBorderRadius ??
-                          BorderRadius.all(Radius.circular(0)),
-                    ),
-                focusedBorder:
-                    theme.decoration?.focusedBorder ??
-                    OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: Theme.of(context).primaryColor,
-                        width: 2.0,
-                      ),
-                    ),
-              ),
-              style: theme.valueStyle ?? const TextStyle(fontSize: 14),
-            ),
-          ),
-        if (widget.isSearchable) const Divider(height: 1),
-        if (widget.isFromApi && widget.isLoading)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24.0),
-            child: Center(
-              child: Text('Loading...', style: theme.loadingTextStyle),
-            ),
-          )
-        else if (optionsToShow.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Center(
-              child: Text(
-                'No options found.',
-                style: theme.noOptionsFoundTextStyle,
-              ),
-            ),
-          )
-        else
-          Flexible(
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              itemCount: optionsToShow.length,
-              itemBuilder: (context, index) {
-                final option = optionsToShow[index];
-                final bool isSelected = widget.value.contains(option);
-                return ListTile(
-                  title: Text(
-                    option.toString(),
-                    style:
-                        isSelected
-                            ? theme.dropdownSelectedItemStyle
-                            : theme.dropdownItemStyle,
-                  ),
-                  onTap: () => _onOptionSelected(option),
-                  selected: isSelected,
-                  selectedTileColor: theme.dropdownItemSelectedColor,
-                  trailing:
-                      (widget.isMulti && isSelected)
-                          ? IconTheme(
-                            data:
-                                theme.checkIconTheme ??
-                                Theme.of(context).iconTheme,
-                            child: const Icon(Icons.check),
-                          )
-                          : null,
-                  dense: true,
-                );
-              },
-            ),
-          ),
+          _buildInlineSearch(showPlaceholder: !hasValue),
       ],
     );
   }
 
-  Widget _buildTrailingIcon() {
+  Widget _buildChip(T option, bool isFixed, VoidCallback onDeleted) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.chipBackgroundColor ?? const Color(0xFFE8F0FE),
+        borderRadius: BorderRadius.circular(2.0),
+        border: Border.all(
+          color:
+              isFixed
+                  ? Colors.transparent
+                  : (theme.chipShape?.side.color ??
+                      const Color(0xFFB0C4DE)),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(option.toString(), style: theme.chipLabelStyle),
+          if (!isFixed) ...[
+            const SizedBox(width: 4.0),
+            GestureDetector(
+              onTap: () {
+                onDeleted();
+              },
+              child: Icon(
+                Icons.close,
+                size: 12.0,
+                color: theme.chipDeleteIconColor ?? const Color(0xFF6B7280),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineSearch({
+    required bool showPlaceholder,
+    String? hintText, // used in single-select to show current value as hint
+  }) {
+    final bool canType = !widget.isDisabled && (widget.isSearchable || widget.isCreatable);
+    return IntrinsicWidth(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 60, maxWidth: 200),
+        child: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          enabled: canType,
+          readOnly: !canType,
+          style: theme.valueStyle ?? const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+            hintText: hintText ??
+                ((showPlaceholder && _searchController.text.isEmpty)
+                    ? (widget.label == null ? widget.placeholder : '')
+                    : null),
+            hintStyle: hintText != null
+                // Current-value hint: same style as selected value but lighter
+                ? (theme.valueStyle ?? const TextStyle(fontSize: 14))
+                    .copyWith(color: (theme.placeholderStyle?.color) ?? Colors.grey)
+                : theme.placeholderStyle,
+          ),
+          onTap: () {
+            if (!_isOverlayVisible) _showOverlay();
+          },
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildOptionsList() {
+    final optionsToShow = widget.isFromApi ? widget.options : _filteredOptions;
+    final String query = _searchController.text.trim();
+    final bool showCreateOption =
+        widget.isCreatable &&
+        query.isNotEmpty &&
+        !optionsToShow.any(
+          (o) => o.toString().toLowerCase() == query.toLowerCase(),
+        );
+
+    // Loading state
     if (widget.isFromApi && widget.isLoading) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: LoadingVibeIndicator(
-          dotSize: widget.theme.loadingIndicatorSize ?? 6,
-          dotColor: widget.theme.loadingIndicatorColor ?? AppColors.greyColor,
+        padding: const EdgeInsets.symmetric(vertical: 24.0),
+        child: Center(
+          child: Text('Loading...', style: theme.loadingTextStyle),
         ),
       );
     }
-    return Icon(
-      _isOverlayVisible ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-      size: theme.dropdownArrowSize ?? 18,
-      color:
-          widget.isDisabled
-              ? (theme.dropdownArrowDisabledColor ??
-                  AppColors.shade400GrayColor)
-              : (theme.dropdownArrowEnabledColor ??
-                  AppColors.shade700GrayColor),
+
+    // Empty — no create option either
+    if (optionsToShow.isEmpty && !showCreateOption) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        child: Center(
+          child: Text('No options found.', style: theme.noOptionsFoundTextStyle),
+        ),
+      );
+    }
+
+    // NOTE: We return ListView directly here (no Column+Flexible wrapper).
+    // The ConstrainedBox(maxHeight:250) in _showOverlay provides the bounded
+    // height that ListView needs to scroll. Flexible inside a mainAxisSize.min
+    // Column collapses to zero, which was hiding the list.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4.0),
+      child: StatefulBuilder(
+        builder: (ctx, setLocalState) {
+          final int itemCount =
+              optionsToShow.length + (showCreateOption ? 1 : 0);
+
+          return ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            itemCount: itemCount,
+            itemBuilder: (context, index) {
+              // ── Create option row ──────────────────────────────────────
+              if (showCreateOption && index == optionsToShow.length) {
+                final bool isHov = _hoveredIndex == -1;
+                return MouseRegion(
+                  onEnter: (_) => setLocalState(() => _hoveredIndex = -1),
+                  onExit: (_) => setLocalState(() => _hoveredIndex = null),
+                  child: GestureDetector(
+                    onTap: _createOption,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 80),
+                      color: isHov
+                          ? (theme.dropdownItemHoverColor ??
+                              const Color(0xFFDEEBFF))
+                          : Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0,
+                        vertical: 8.0,
+                      ),
+                      child: Text(
+                        'Create "$query"',
+                        style: (theme.dropdownItemStyle ??
+                                const TextStyle(fontSize: 14))
+                            .copyWith(fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              // ── Normal option row ──────────────────────────────────────
+              final option = optionsToShow[index];
+              final bool isSelected = widget.value.contains(option);
+              final bool isHovered = _hoveredIndex == index;
+
+              Color bgColor = Colors.transparent;
+              if (isSelected) {
+                bgColor = theme.dropdownItemSelectedColor ??
+                    const Color(0xFFDEEBFF);
+              }
+              if (isHovered) {
+                bgColor = theme.dropdownItemHoverColor ??
+                    const Color(0xFFDEEBFF);
+              }
+
+              return MouseRegion(
+                onEnter: (_) =>
+                    setLocalState(() => _hoveredIndex = index),
+                onExit: (_) =>
+                    setLocalState(() => _hoveredIndex = null),
+                child: GestureDetector(
+                  onTap: () => _onOptionSelected(option),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 80),
+                    color: bgColor,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 8.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            option.toString(),
+                            style: isSelected
+                                ? theme.dropdownSelectedItemStyle
+                                : theme.dropdownItemStyle,
+                          ),
+                        ),
+                        if (widget.isMulti && isSelected)
+                          IconTheme(
+                            data: theme.checkIconTheme ??
+                                Theme.of(context).iconTheme,
+                            child: const Icon(Icons.check),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTrailingIcons() {
+    final bool showClear =
+        widget.isClearable &&
+        widget.value.isNotEmpty &&
+        !widget.isDisabled &&
+        // Only show clear if there are non-fixed selected items
+        widget.value.any((v) => !widget.fixedOptions.contains(v));
+
+    if (widget.isFromApi && widget.isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: LoadingVibeIndicator(
+          dotSize: widget.theme.loadingIndicatorSize ?? 6,
+          dotColor:
+              widget.theme.loadingIndicatorColor ?? AppColors.greyColor,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showClear) ...[
+          GestureDetector(
+            onTap: _clearSelection,
+            child: Icon(
+              Icons.close,
+              size: theme.clearIconTheme?.size ?? 16.0,
+              color:
+                  theme.clearIconTheme?.color ??
+                  AppColors.shade400GrayColor,
+            ),
+          ),
+          const SizedBox(width: 6.0),
+          // Vertical separator – matches react-select style
+          Container(
+            width: 1.0,
+            height: 20.0,
+            color:
+                theme.separatorColor ??
+                AppColors.shade300GrayColor ??
+                Colors.grey.shade300,
+          ),
+          const SizedBox(width: 6.0),
+        ],
+        // Dropdown arrow
+        Icon(
+          _isOverlayVisible
+              ? Icons.keyboard_arrow_up
+              : Icons.keyboard_arrow_down,
+          size: theme.dropdownArrowSize ?? 20,
+          color:
+              widget.isDisabled
+                  ? (theme.dropdownArrowDisabledColor ??
+                      AppColors.shade400GrayColor)
+                  : (theme.dropdownArrowEnabledColor ??
+                      AppColors.shade600GrayColor),
+        ),
+      ],
     );
   }
 
@@ -373,6 +639,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
           link: _layerLink,
           child: GestureDetector(
             onTap: _toggleOverlay,
+            behavior: HitTestBehavior.opaque,
             child: InputDecorator(
               decoration: (theme.decoration ?? InputDecoration()).copyWith(
                 label:
@@ -380,7 +647,6 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                         ? null
                         : RichText(
                           text: TextSpan(
-                            // Use the default label style from the theme, or a fallback.
                             style:
                                 theme.labelStyle ??
                                 TextStyle(
@@ -395,7 +661,6 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                               if (widget.isRequired)
                                 TextSpan(
                                   text: ' *',
-                                  // Use a specific style for the asterisk, defaulting to red.
                                   style:
                                       theme.requiredTextStyle ??
                                       TextStyle(
@@ -406,26 +671,40 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                             ],
                           ),
                         ),
-                hintText: widget.label != null ? widget.placeholder : null,
+                hintText:
+                    widget.label != null && !widget.isSearchable
+                        ? widget.placeholder
+                        : null,
                 hintStyle: theme.placeholderStyle,
                 labelStyle: theme.labelStyle,
                 errorText: field.errorText,
                 floatingLabelStyle: theme.floatingLabelStyle,
                 filled: widget.isDisabled,
-                fillColor: widget.isDisabled ? theme.fieldDisabledColor : null,
+                fillColor:
+                    widget.isDisabled ? theme.fieldDisabledColor : null,
                 border:
                     theme.decoration?.border ??
                     OutlineInputBorder(
                       borderRadius:
                           widget.theme.fieldBorderRadius ??
-                          BorderRadius.all(Radius.circular(0)),
+                          const BorderRadius.all(Radius.circular(4)),
                     ),
                 enabledBorder:
                     theme.decoration?.enabledBorder ??
-                    const OutlineInputBorder(),
+                    OutlineInputBorder(
+                      borderRadius:
+                          widget.theme.fieldBorderRadius ??
+                          const BorderRadius.all(Radius.circular(4)),
+                      borderSide: BorderSide(
+                        color: AppColors.shade300GrayColor ?? Colors.grey,
+                      ),
+                    ),
                 focusedBorder:
                     theme.decoration?.focusedBorder ??
                     OutlineInputBorder(
+                      borderRadius:
+                          widget.theme.fieldBorderRadius ??
+                          const BorderRadius.all(Radius.circular(4)),
                       borderSide: BorderSide(
                         color: Theme.of(context).primaryColor,
                         width: 2.0,
@@ -434,14 +713,20 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                 errorBorder:
                     theme.decoration?.errorBorder ??
                     OutlineInputBorder(
+                      borderRadius:
+                          widget.theme.fieldBorderRadius ??
+                          const BorderRadius.all(Radius.circular(4)),
                       borderSide: BorderSide(
                         color: Theme.of(context).colorScheme.error,
-                        width: 2.0,
+                        width: 1.5,
                       ),
                     ),
                 focusedErrorBorder:
                     theme.decoration?.focusedErrorBorder ??
                     OutlineInputBorder(
+                      borderRadius:
+                          widget.theme.fieldBorderRadius ??
+                          const BorderRadius.all(Radius.circular(4)),
                       borderSide: BorderSide(
                         color: Theme.of(context).colorScheme.error,
                         width: 2.0,
@@ -449,42 +734,30 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                     ),
                 contentPadding:
                     theme.decoration?.contentPadding ??
-                    const EdgeInsets.fromLTRB(12, 16, 12, 16),
+                    const EdgeInsets.fromLTRB(12, 10, 8, 10),
                 disabledBorder:
                     theme.decoration?.disabledBorder ??
                     OutlineInputBorder(
+                      borderRadius:
+                          widget.theme.fieldBorderRadius ??
+                          const BorderRadius.all(Radius.circular(4)),
                       borderSide: BorderSide(
                         color:
                             theme.fieldDisabledColor ??
                             AppColors.shade200GrayColor ??
                             AppColors.greyColor,
-                        width: 2.0,
                       ),
                     ),
               ),
               isFocused: _isOverlayVisible,
-              isEmpty: widget.value.isEmpty,
+              isEmpty:
+                  widget.value.isEmpty &&
+                  _searchController.text.isEmpty,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: _buildValueDisplay()),
-                  if (widget.isClearable &&
-                      widget.value.isNotEmpty &&
-                      !widget.isDisabled)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: GestureDetector(
-                        onTap: _clearSelection,
-                        child: Icon(
-                          Icons.close,
-                          size: theme.clearIconTheme?.size ?? 18.0,
-                          color:
-                              theme.clearIconTheme?.color ??
-                              AppColors.shade600GrayColor,
-                        ),
-                      ),
-                    ),
-                  _buildTrailingIcon(),
+                  _buildTrailingIcons(),
                 ],
               ),
             ),

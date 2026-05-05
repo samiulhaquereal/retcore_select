@@ -1,6 +1,6 @@
 name: retcore_select
 description: "A flexible and beautiful Select Input control for Flutter with multiselect, autocomplete and async support."
-version: 0.0.9
+version: 0.1.0
 homepage: https://github.com/samiulhaquereal/flutter_select.git
 repository: https://github.com/samiulhaquereal/flutter_select.git
 

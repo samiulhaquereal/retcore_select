@@ -21,18 +21,16 @@ Retcore Select is a highly versatile and themeable select component designed to 
 
 ## Key Features
 
-- **Single & Multi-Select**: Seamlessly switch between single and multi-selection modes with a simple boolean flag.
-- **Form Validation**:
-  - **Required Fields**: Make any select field mandatory with a simple `isRequired: true` flag.
-  - **Custom Logic**: Implement complex rules with an optional `validator` function.
-  - **Real-Time Feedback**: Integrates perfectly with `Form`'s `autovalidateMode` for instant user feedback.
-- **Fully Themeable**: Use the built-in `InputDecorator` to style the component like a standard `TextField`, or provide a comprehensive `FlutterSelectTheme` for deep customization of every element.
-- **Search & Autocomplete**:
-    - **Local Filtering**: Instantly search through a predefined list of options.
-    - **Async API Search**: Fetch options from your server with built-in debouncing to prevent excessive API calls.
+- **React-Select Parity**: Beautiful, out-of-the-box styling and behavior heavily inspired by `react-select`.
+- **Inline Search**: Instantly filter options or type to create new ones directly inside the select input box.
+- **Creatable Options**: Allow users to dynamically create and add their own options if they don't exist in the list.
+- **Fixed Options**: Pin specific items in multi-select mode so they cannot be accidentally removed.
+- **Auto-Flipping Dropdown**: The dropdown intelligently detects screen edges and opens upwards if there isn't enough space below.
+- **Single & Multi-Select**: Seamlessly switch between single and multi-selection modes.
+- **Form Validation**: Supports required fields (`isRequired`) and custom `validator` functions with real-time feedback.
+- **Fully Themeable**: Deep customization through `FlutterSelectTheme` or standard `InputDecorator` styling.
+- **Async API Search**: Fetch options from your server with built-in debouncing to prevent excessive API calls.
 - **Custom Builders**: Take full control over the UI by providing a custom `chipBuilder` for multi-select values.
-- **Professional UX**: Includes floating labels, clearable values, disabled states, and elegant loading indicators out of the box.
-- **Lightweight & Performant**: Built with Flutter's best practices to ensure smooth performance.
 
 ## Installation
 
@@ -129,30 +127,36 @@ RetCoreSelect<String>(
 
 ```flutter
 RetCoreSelect<String>(
-                      options: options,
-                      isMulti: true,
-                      isSearchable: true,
-                      isDisabled: false,
-                      theme: customTheme,
-                      values: multiSelectValueWithFixed.toList(),
-                      onValuesChanged: (newValue) => updateMultiSelectWithFixedValue(newValue),
-                      placeholder: 'Select your favorite frameworks...',
-                      chipBuilder: (context, value, onDeleted) {
-                        // --- NEW: Check if the current chip is a fixed one ---
-                        final isFixed = fixedOptions.contains(value);
+  options: options,
+  isMulti: true,
+  isSearchable: true,
+  fixedOptions: const ['Flutter', 'React'], // These cannot be removed
+  values: multiSelectValueWithFixed.toList(),
+  onValuesChanged: (newValue) => updateMultiSelectWithFixedValue(newValue),
+  placeholder: 'Select your favorite frameworks...',
+)
+```
 
-                        return Chip(
-                          label: Text(
-                            value,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                          ),
-                          // If the option is fixed, pass null to onDeleted to hide the icon.
-                          onDeleted: isFixed ? null : onDeleted,
-                          backgroundColor: _getColorForFramework(value),
-                          deleteIconColor: Colors.white70,
-                        );
-                      },
-                    )
+### Creatable Options (Single & Multi)
+
+Allows users to type and add a custom option if it's not found in the list.
+
+```flutter
+RetCoreSelect<String>(
+  label: 'Add your stack',
+  options: options,
+  isMulti: true,
+  isSearchable: true,
+  isCreatable: true,
+  values: creatableValues,
+  onValuesChanged: (newValue) => setState(() => creatableValues = newValue),
+  onCreateOption: (newOption) {
+    setState(() {
+      options.add(newOption);
+      creatableValues.add(newOption);
+    });
+  },
+)
 ```
 
 ### Single-Select
@@ -195,7 +199,10 @@ RetCoreSelect<String>(
 | `placeholder`     | `String`                            | The text to show when the field is empty and has no label. Defaults to 'Select...'.               |
 | `label`           | `String?`                           | The floating label text for the input field.                                                      |
 | `isMulti`         | `bool`                              | If `true`, allows multiple values to be selected. Defaults to `false`.                            |
-| `isSearchable`    | `bool`                              | If `true`, shows a search bar in the dropdown. Defaults to `false`.                               |
+| `isSearchable`    | `bool`                              | If `true`, enables inline search filtering. Defaults to `false`.                                  |
+| `isCreatable`     | `bool`                              | If `true`, allows users to type and create a new option. Defaults to `false`.                     |
+| `onCreateOption`  | `Function(String)?`                 | Callback triggered when a user selects the "Create" option.                                       |
+| `fixedOptions`    | `List<T>`                           | A list of items in multi-select that cannot be deleted by the user.                               |
 | `isDisabled`      | `bool`                              | If `true`, disables user interaction. Defaults to `false`.                                        |
 | `isClearable`     | `bool`                              | If `true`, shows a clear icon to remove all selected values. Defaults to `false`.                 |
 | `isFromApi`       | `bool`                              | Set to `true` when using `onSearch` to fetch data from an API. Defaults to `false`.               |

@@ -1,3 +1,12 @@
+## 0.1.0
+
+* **React-Select Parity**: Massive UX and styling update to closely match `react-select`.
+* **Inline Search**: Search functionality is now seamlessly embedded inline within the trigger field instead of a separate box.
+* **Auto-Flipping Dropdown**: The dropdown now intelligently opens upwards if there is not enough space below.
+* **Creatable Options**: Added `isCreatable` and `onCreateOption` support to allow users to dynamically add new options on the fly for both single and multi-select.
+* **Fixed Options**: Added `fixedOptions` to support pinning specific items in multi-select that cannot be removed by the user.
+* **UI/UX Refinements**: Added hover state styles, vertical separators, new default theme values, and improved overall focus management.
+
 ## 0.0.9
 
 * Fixed required field & validation.

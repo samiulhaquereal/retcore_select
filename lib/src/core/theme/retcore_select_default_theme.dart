@@ -42,10 +42,16 @@ class RetCoreSelectDefaultTheme {
       dropdownItemSelectedColor: colorScheme.primary.withAlpha(
         26,
       ), // 10% opacity
+      dropdownItemHoverColor: colorScheme.primary.withAlpha(
+        20,
+      ), // ~8% opacity
       dropdownItemStyle: textTheme.bodyMedium,
       dropdownSelectedItemStyle: textTheme.bodyMedium?.copyWith(
         color: colorScheme.primary,
       ),
+
+      // --- Separator ---
+      separatorColor: colorScheme.outline.withAlpha(100),
 
       // --- Icons ---
       checkIconTheme: IconThemeData(color: colorScheme.primary, size: 20),

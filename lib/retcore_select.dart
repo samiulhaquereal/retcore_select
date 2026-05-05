@@ -35,6 +35,9 @@ class RetCoreSelect<T> extends StatelessWidget {
   /// Shows a loading indicator, typically used with [isFromApi].
   final bool isLoading;
 
+  /// Allows the user to create new options by typing.
+  final bool isCreatable;
+
   /// The theme to style the widget.
   final RetCoreSelectTheme? theme;
 
@@ -43,6 +46,9 @@ class RetCoreSelect<T> extends StatelessWidget {
 
   /// A callback that fires when the user types in the search bar.
   final Function(String query)? onSearch;
+
+  /// Called when the user creates a new option (requires [isCreatable] = true).
+  final Function(String label)? onCreateOption;
 
   /// The currently selected value (for single-select mode).
   final T? value;
@@ -55,6 +61,9 @@ class RetCoreSelect<T> extends StatelessWidget {
 
   /// A callback that fires when the selected values change (for multi-select mode).
   final Function(List<T>)? onValuesChanged;
+
+  /// Items that cannot be removed by the user (react-select "fixed" options).
+  final List<T> fixedOptions;
 
   /// Field Validator
   final FormFieldValidator<List<T>>? validator;
@@ -71,14 +80,17 @@ class RetCoreSelect<T> extends StatelessWidget {
     this.isFromApi = false,
     this.isLoading = false,
     this.isRequired = false,
+    this.isCreatable = false,
     this.theme,
     this.chipBuilder,
     this.onSearch,
+    this.onCreateOption,
     this.validator,
     this.value,
     this.onChanged,
     this.values,
     this.onValuesChanged,
+    this.fixedOptions = const [],
   }) : assert(
          isMulti
              ? (values != null && onValuesChanged != null)
@@ -109,9 +121,11 @@ class RetCoreSelect<T> extends StatelessWidget {
       isClearable: isClearable,
       isFromApi: isFromApi,
       isLoading: isLoading,
+      isCreatable: isCreatable,
       theme: theme ?? RetCoreSelectTheme(),
       chipBuilder: chipBuilder,
       options: options.cast<T>().toList(),
+      fixedOptions: fixedOptions.cast<T>().toList(),
       value: isMulti ? values! : (value == null ? [] : [value as T]),
       onChanged: (newValue) {
         if (isMulti) {
@@ -121,6 +135,7 @@ class RetCoreSelect<T> extends StatelessWidget {
         }
       },
       onSearch: onSearch,
+      onCreateOption: onCreateOption,
     );
   }
 }
