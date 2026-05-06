@@ -117,9 +117,12 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _onFocusChanged() {
     if (!_searchFocusNode.hasFocus && _isOverlayVisible) {
-      // Small delay so tap-on-item registers before overlay hides
-      Future.delayed(const Duration(milliseconds: 150), () {
-        if (mounted && !_searchFocusNode.hasFocus) _hideOverlay();
+      // Small delay so tap-on-item registers before overlay hides.
+      // Increased delay slightly and added check for focus regain.
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted && !_searchFocusNode.hasFocus && _isOverlayVisible) {
+          _hideOverlay();
+        }
       });
     } else if (_searchFocusNode.hasFocus && !_isOverlayVisible) {
       _showOverlay();
@@ -155,10 +158,8 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   void _toggleOverlay() {
     if (widget.isDisabled) return;
     if (_isOverlayVisible) {
-      _searchFocusNode.unfocus();
       _hideOverlay();
     } else {
-      _searchFocusNode.requestFocus();
       _showOverlay();
     }
   }
@@ -175,6 +176,15 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     if (_isOverlayVisible) return;
     setState(() => _isOverlayVisible = true);
 
+    // Focus the search field after the build so the TextField can catch it.
+    if (widget.isSearchable || widget.isCreatable) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_searchFocusNode.hasFocus) {
+          _searchFocusNode.requestFocus();
+        }
+      });
+    }
+
     final renderBox = context.findRenderObject() as RenderBox;
     final size = renderBox.size;
     const dropdownMaxHeight = 250.0;
@@ -189,7 +199,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
             Positioned.fill(
               child: GestureDetector(
                 onTap: _hideOverlay,
-                behavior: HitTestBehavior.translucent,
+                behavior: HitTestBehavior.opaque,
               ),
             ),
             // The dropdown panel
@@ -230,11 +240,13 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _hideOverlay() {
     if (!_isOverlayVisible) return;
-    _removeOverlay();
+
     // Ensure focus is cleared when overlay is hidden to avoid focus-locking issues
     if (_searchFocusNode.hasFocus) {
       _searchFocusNode.unfocus();
     }
+
+    _removeOverlay();
     setState(() {
       _isOverlayVisible = false;
       _hoveredIndex = null;
@@ -435,7 +447,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                 : theme.placeholderStyle,
           ),
           onTap: () {
-            if (!_isOverlayVisible) _showOverlay();
+            // Focus listener handles opening if not already open
           },
         ),
       ),
