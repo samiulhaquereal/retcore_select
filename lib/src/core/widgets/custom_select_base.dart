@@ -1,4 +1,5 @@
 import 'package:retcore_select/src/config/import.dart';
+import 'package:flutter/scheduler.dart';
 
 // A builder function to create a custom chip widget.
 typedef CustomChipBuilder<T> =
@@ -76,6 +77,9 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   // Tracks which dropdown item is hovered (by index)
   int? _hoveredIndex;
 
+  // Used to prevent immediate closing when focus and tap events both trigger
+  DateTime? _lastOpenedAt;
+
   RetCoreSelectTheme get theme => widget.theme;
 
   @override
@@ -102,7 +106,11 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   void didUpdateWidget(CustomSelectBase<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.options != oldWidget.options) {
-      _filteredOptions = widget.options;
+      if (widget.isFromApi) {
+        _filteredOptions = widget.options;
+      } else {
+        _applyFilter();
+      }
     }
     // Sync external value changes with internal FormField state
     if (widget.value != oldWidget.value) {
@@ -117,10 +125,26 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     });
   }
 
+  void _applyFilter() {
+    final query = _searchController.text;
+    if (widget.isFromApi) return;
+    
+    final newFiltered = widget.options
+        .where(
+          (o) => o.toString().toLowerCase().contains(query.toLowerCase()),
+        )
+        .toList();
+
+    if (mounted) {
+      setState(() {
+        _filteredOptions = newFiltered;
+      });
+    }
+  }
+
   void _onFocusChanged() {
     if (!_searchFocusNode.hasFocus && _isOverlayVisible) {
       // Small delay so tap-on-item registers before overlay hides.
-      // Increased delay slightly and added check for focus regain.
       Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted && !_searchFocusNode.hasFocus && _isOverlayVisible) {
           _hideOverlay();
@@ -133,25 +157,27 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _onSearchChanged() {
     final query = _searchController.text;
-    // If creatable/searchable and user is typing, ensure the overlay is open
-    if (!_isOverlayVisible && query.isNotEmpty) {
-      _showOverlay();
-    }
+    _applyFilter();
+
     if (widget.isFromApi) {
       _debouncer?.run(() {
         if (widget.onSearch != null) widget.onSearch!(query);
       });
-    } else {
-      setState(() {
-        _filteredOptions =
-            widget.options
-                .where(
-                  (o) =>
-                      o.toString().toLowerCase().contains(query.toLowerCase()),
-                )
-                .toList();
-      });
     }
+
+    // If creatable/searchable and user is typing, ensure the overlay is open
+    if (!_isOverlayVisible && query.isNotEmpty) {
+      if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+        _showOverlay();
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_isOverlayVisible && _searchController.text.isNotEmpty) {
+            _showOverlay();
+          }
+        });
+      }
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _overlayEntry?.markNeedsBuild();
     });
@@ -160,9 +186,14 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   void _toggleOverlay() {
     if (widget.isDisabled) return;
     if (_isOverlayVisible) {
+      // If we JUST opened the overlay (e.g. via focus event), ignore the tap
+      // to prevent immediate closing.
+      if (_lastOpenedAt != null &&
+          DateTime.now().difference(_lastOpenedAt!).inMilliseconds < 200) {
+        return;
+      }
       _hideOverlay();
     } else {
-      // Force overlay to show even if focus node is weirdly behaving
       _showOverlay();
     }
   }
@@ -177,6 +208,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _showOverlay() {
     if (_isOverlayVisible) return;
+    _lastOpenedAt = DateTime.now();
     setState(() => _isOverlayVisible = true);
 
     // Focus the search field after the build so the TextField can catch it.
