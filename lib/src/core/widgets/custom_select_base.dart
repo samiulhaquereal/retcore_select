@@ -104,6 +104,12 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     if (widget.options != oldWidget.options) {
       _filteredOptions = widget.options;
     }
+    // Sync external value changes with internal FormField state
+    if (widget.value != oldWidget.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _formFieldKey.currentState?.didChange(widget.value);
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _overlayEntry?.markNeedsBuild();
     });
@@ -148,13 +154,12 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _toggleOverlay() {
     if (widget.isDisabled) return;
-    // If the inline search field already has focus, don't toggle —
-    // this avoids a race where GestureDetector closes what the TextField just opened.
-    if (_searchFocusNode.hasFocus) return;
     if (_isOverlayVisible) {
       _searchFocusNode.unfocus();
+      _hideOverlay();
     } else {
       _searchFocusNode.requestFocus();
+      _showOverlay();
     }
   }
 
@@ -226,6 +231,10 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   void _hideOverlay() {
     if (!_isOverlayVisible) return;
     _removeOverlay();
+    // Ensure focus is cleared when overlay is hidden to avoid focus-locking issues
+    if (_searchFocusNode.hasFocus) {
+      _searchFocusNode.unfocus();
+    }
     setState(() {
       _isOverlayVisible = false;
       _hoveredIndex = null;

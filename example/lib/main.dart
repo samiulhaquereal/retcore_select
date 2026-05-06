@@ -12,10 +12,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'RetCore Select Example',
-      theme: ThemeData(
-        colorSchemeSeed: Colors.deepPurple,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(colorSchemeSeed: Colors.deepPurple, useMaterial3: true),
       home: const ExampleScreen(),
     );
   }
@@ -45,19 +42,9 @@ class _ExampleScreenState extends State<ExampleScreen> {
     'Backbone',
   ];
 
-  List<String> _singleCreatableOptions = [
-    'Flutter',
-    'React',
-    'Vue',
-    'Angular',
-  ];
+  List<String> _singleCreatableOptions = ['Flutter', 'React', 'Vue', 'Angular'];
 
-  List<String> _creatableOptions = [
-    'Flutter',
-    'React',
-    'Vue',
-    'Angular',
-  ];
+  List<String> _creatableOptions = ['Flutter', 'React', 'Vue', 'Angular'];
 
   @override
   Widget build(BuildContext context) {
@@ -105,43 +92,60 @@ class _ExampleScreenState extends State<ExampleScreen> {
 
                 const SizedBox(height: 32),
 
-                // ───────────────────────────────────────────────────────
-                // 3. Multi-Select (inline search, clearable)
-                // ───────────────────────────────────────────────────────
-                _sectionTitle('3. Multi-Select with Inline Search'),
-                RetCoreSelect<String>(
-                  label: 'Select your favorite frameworks',
-                  placeholder: 'Select...',
-                  options: _options,
-                  isMulti: true,
-                  isSearchable: true,
-                  isClearable: true,
-                  values: _multiValues,
-                  onValuesChanged: (v) => setState(() => _multiValues = v),
-                ),
+                Row(
+                  children: [
+                    // ───────────────────────────────────────────────────────
+                    // 3. Multi-Select (inline search, clearable)
+                    // ───────────────────────────────────────────────────────
+                    Expanded(
+                      child: Column(
+                        children: [
+                          _sectionTitle('3. Multi-Select with Inline Search'),
+                          RetCoreSelect<String>(
+                            label: 'Select your favorite frameworks',
+                            placeholder: 'Select...',
+                            options: _options,
+                            isMulti: true,
+                            isSearchable: true,
+                            isClearable: true,
+                            values: _multiValues,
+                            onValuesChanged:
+                                (v) => setState(() => _multiValues = v),
+                          ),
+                        ],
+                      ),
+                    ),
 
-                const SizedBox(height: 32),
+                    const SizedBox(width: 32),
 
-                // ───────────────────────────────────────────────────────
-                // 3. Fixed Options  (react-select "fixed-options" demo)
-                // ───────────────────────────────────────────────────────
-                _sectionTitle('3. Fixed Options (Cannot Be Removed)'),
-                Text(
-                  '"Flutter" and "React" are pinned — they cannot be cleared.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                RetCoreSelect<String>(
-                  label: 'Select frameworks',
-                  options: _options,
-                  isMulti: true,
-                  isSearchable: true,
-                  isClearable: true,
-                  fixedOptions: const ['Flutter', 'React'],
-                  values: _fixedValues,
-                  onValuesChanged: (v) => setState(() => _fixedValues = v),
+                    // ───────────────────────────────────────────────────────
+                    // 3. Fixed Options  (react-select "fixed-options" demo)
+                    // ───────────────────────────────────────────────────────
+                    Expanded(
+                      child: Column(
+                        children: [
+                          _sectionTitle('3. Fixed Options (Cannot Be Removed)'),
+                          Text(
+                            '"Flutter" and "React" are pinned — they cannot be cleared.',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                          const SizedBox(height: 8),
+                          RetCoreSelect<String>(
+                            label: 'Select frameworks',
+                            options: _options,
+                            isMulti: true,
+                            isSearchable: true,
+                            isClearable: true,
+                            fixedOptions: const ['Flutter', 'React'],
+                            values: _fixedValues,
+                            onValuesChanged:
+                                (v) => setState(() => _fixedValues = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 32),
@@ -158,8 +162,7 @@ class _ExampleScreenState extends State<ExampleScreen> {
                   isClearable: true,
                   isCreatable: true,
                   values: _creatableValues,
-                  onValuesChanged: (v) =>
-                      setState(() => _creatableValues = v),
+                  onValuesChanged: (v) => setState(() => _creatableValues = v),
                   onCreateOption: (label) {
                     setState(() {
                       _creatableOptions.add(label);
