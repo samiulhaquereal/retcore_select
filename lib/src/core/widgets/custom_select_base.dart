@@ -111,7 +111,9 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
       });
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _overlayEntry?.markNeedsBuild();
+      if (mounted && _isOverlayVisible) {
+        _overlayEntry?.markNeedsBuild();
+      }
     });
   }
 
@@ -160,6 +162,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     if (_isOverlayVisible) {
       _hideOverlay();
     } else {
+      // Force overlay to show even if focus node is weirdly behaving
       _showOverlay();
     }
   }
@@ -179,8 +182,10 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     // Focus the search field after the build so the TextField can catch it.
     if (widget.isSearchable || widget.isCreatable) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_searchFocusNode.hasFocus) {
-          _searchFocusNode.requestFocus();
+        if (mounted && _isOverlayVisible) {
+          if (!_searchFocusNode.hasFocus) {
+            _searchFocusNode.requestFocus();
+          }
         }
       });
     }
