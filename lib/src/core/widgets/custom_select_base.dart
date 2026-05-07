@@ -105,6 +105,15 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   @override
   void didUpdateWidget(CustomSelectBase<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // If the identifying features of the widget change (like label or selection mode),
+    // it's likely a state-swap from a different field in a list (common if keys are missing).
+    // In such cases, we should close any active overlay.
+    if (widget.label != oldWidget.label || widget.isMulti != oldWidget.isMulti) {
+      if (_isOverlayVisible) {
+        _hideOverlay();
+      }
+    }
+
     if (widget.options != oldWidget.options) {
       if (widget.isFromApi) {
         _filteredOptions = widget.options;
@@ -143,15 +152,17 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
   }
 
   void _onFocusChanged() {
-    if (!_searchFocusNode.hasFocus && _isOverlayVisible) {
-      // Small delay so tap-on-item registers before overlay hides.
-      Future.delayed(const Duration(milliseconds: 200), () {
-        if (mounted && !_searchFocusNode.hasFocus && _isOverlayVisible) {
-          _hideOverlay();
-        }
-      });
-    } else if (_searchFocusNode.hasFocus && !_isOverlayVisible) {
-      _showOverlay();
+    if (mounted) {
+      if (!_searchFocusNode.hasFocus && _isOverlayVisible) {
+        // Small delay so tap-on-item registers before overlay hides.
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted && !_searchFocusNode.hasFocus && _isOverlayVisible) {
+            _hideOverlay();
+          }
+        });
+      } else if (_searchFocusNode.hasFocus && !_isOverlayVisible) {
+        _showOverlay();
+      }
     }
   }
 
@@ -208,6 +219,12 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
 
   void _showOverlay() {
     if (_isOverlayVisible) return;
+    
+    // Safety: ensure any previous entry is cleared before creating a new one
+    if (_overlayEntry != null) {
+      _removeOverlay();
+    }
+
     _lastOpenedAt = DateTime.now();
     setState(() => _isOverlayVisible = true);
 
@@ -223,6 +240,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     }
 
     final renderBox = context.findRenderObject() as RenderBox;
+    if (!renderBox.hasSize) return;
     final size = renderBox.size;
     const dropdownMaxHeight = 250.0;
 
@@ -484,7 +502,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                 : theme.placeholderStyle,
           ),
           onTap: () {
-            // Focus listener handles opening if not already open
+            _toggleOverlay();
           },
         ),
       ),
