@@ -14,6 +14,9 @@ class RetCoreSelect<T> extends StatelessWidget {
   /// The floating label to display above the field.
   final String? label;
 
+  /// A custom error text to display below the field (e.g. for live validation).
+  final String? errorText;
+
   /// Determines if the widget is in multi-select mode.
   final bool isMulti;
 
@@ -50,6 +53,12 @@ class RetCoreSelect<T> extends StatelessWidget {
   /// Called when the user creates a new option (requires [isCreatable] = true).
   final Function(String label)? onCreateOption;
 
+  /// The maximum number of characters allowed in the search/create field.
+  final int? searchMaxLength;
+
+  /// The maximum number of items that can be selected (only for multi-select).
+  final int? maxSelectedItems;
+
   /// The currently selected value (for single-select mode).
   final T? value;
 
@@ -73,6 +82,7 @@ class RetCoreSelect<T> extends StatelessWidget {
     required this.options,
     this.placeholder = 'Select...',
     this.label,
+    this.errorText,
     this.isMulti = false,
     this.isSearchable = false,
     this.isDisabled = false,
@@ -85,6 +95,8 @@ class RetCoreSelect<T> extends StatelessWidget {
     this.chipBuilder,
     this.onSearch,
     this.onCreateOption,
+    this.searchMaxLength,
+    this.maxSelectedItems,
     this.validator,
     this.value,
     this.onChanged,
@@ -113,6 +125,7 @@ class RetCoreSelect<T> extends StatelessWidget {
     return CustomSelectBase<T>(
       placeholder: placeholder,
       label: label,
+      errorText: errorText,
       isMulti: isMulti,
       validator: validator,
       isRequired: isRequired,
@@ -136,6 +149,8 @@ class RetCoreSelect<T> extends StatelessWidget {
       },
       onSearch: onSearch,
       onCreateOption: onCreateOption,
+      searchMaxLength: searchMaxLength,
+      maxSelectedItems: maxSelectedItems,
     );
   }
 }

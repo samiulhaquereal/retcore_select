@@ -31,6 +31,9 @@ class _ExampleScreenState extends State<ExampleScreen> {
   List<String> _multiValues = [];
   List<String> _fixedValues = ['Flutter', 'React'];
   List<String> _creatableValues = [];
+  List<String> _constrainedValues = [];
+  String? _liveErrorValue;
+  String? _liveErrorText;
 
   final List<String> _options = [
     'Flutter',
@@ -185,6 +188,61 @@ class _ExampleScreenState extends State<ExampleScreen> {
                   fixedOptions: const ['Flutter', 'React'],
                   values: const ['Flutter', 'React'],
                   onValuesChanged: (v) {},
+                ),
+
+                const SizedBox(height: 32),
+
+                // ───────────────────────────────────────────────────────
+                // 6. Constraints (maxSelectedItems and searchMaxLength)
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('6. Constraints (Max Items & Max Length)'),
+                RetCoreSelect<String>(
+                  label: 'Select up to 3 frameworks (max 10 chars search)',
+                  options: _options,
+                  isMulti: true,
+                  isSearchable: true,
+                  isClearable: true,
+                  maxSelectedItems: 3,
+                  searchMaxLength: 10,
+                  values: _constrainedValues,
+                  onValuesChanged: (v) => setState(() => _constrainedValues = v),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ───────────────────────────────────────────────────────
+                // 7. Live Validation (Error Message)
+                // ───────────────────────────────────────────────────────
+                _sectionTitle('7. Live Validation (No Special Characters)'),
+                RetCoreSelect<String>(
+                  label: 'Type a new framework (alphabets only)',
+                  options: const ['Flutter', 'React'],
+                  isSearchable: true,
+                  isCreatable: _liveErrorText == null, // If there's an error, don't allow creating
+                  isClearable: true,
+                  value: _liveErrorValue,
+                  errorText: _liveErrorText,
+                  onSearch: (query) {
+                    // Check for special characters using Regex
+                    if (query.isNotEmpty && !RegExp(r'^[a-zA-Z\s]+$').hasMatch(query)) {
+                      setState(() {
+                        _liveErrorText = 'Special characters and numbers are not allowed!';
+                      });
+                    } else if (query.length >= 10) {
+                      setState(() {
+                        _liveErrorText = 'Max length reached (10)!';
+                      });
+                    } else {
+                      setState(() {
+                        _liveErrorText = null;
+                      });
+                    }
+                  },
+                  onChanged: (v) => setState(() => _liveErrorValue = v),
+                  onCreateOption: (v) => setState(() {
+                     _liveErrorValue = v;
+                     _liveErrorText = null;
+                  }),
                 ),
               ],
             ),

@@ -16,6 +16,7 @@ class CustomSelectBase<T> extends StatefulWidget {
 
   final String placeholder;
   final String? label;
+  final String? errorText;
   final bool isMulti,
       isSearchable,
       isDisabled,
@@ -33,6 +34,12 @@ class CustomSelectBase<T> extends StatefulWidget {
   /// Called when the user creates a new option (only when [isCreatable] is true).
   final Function(String label)? onCreateOption;
 
+  /// The maximum number of characters allowed in the search/create field.
+  final int? searchMaxLength;
+
+  /// The maximum number of items that can be selected (only for multi-select).
+  final int? maxSelectedItems;
+
   const CustomSelectBase({
     super.key,
     required this.options,
@@ -40,6 +47,7 @@ class CustomSelectBase<T> extends StatefulWidget {
     this.fixedOptions = const [],
     required this.placeholder,
     this.label,
+    this.errorText,
     required this.isMulti,
     required this.isSearchable,
     required this.isDisabled,
@@ -54,6 +62,8 @@ class CustomSelectBase<T> extends StatefulWidget {
     this.onSearch,
     this.onCreateOption,
     this.validator,
+    this.searchMaxLength,
+    this.maxSelectedItems,
   });
 
   @override
@@ -170,10 +180,14 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     final query = _searchController.text;
     _applyFilter();
 
-    if (widget.isFromApi) {
-      _debouncer?.run(() {
-        if (widget.onSearch != null) widget.onSearch!(query);
-      });
+    if (widget.onSearch != null) {
+      if (widget.isFromApi) {
+        _debouncer?.run(() {
+          widget.onSearch!(query);
+        });
+      } else {
+        widget.onSearch!(query);
+      }
     }
 
     // If creatable/searchable and user is typing, ensure the overlay is open
@@ -325,7 +339,12 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
           newValue.remove(option);
         }
       } else {
-        newValue.add(option);
+        if (widget.maxSelectedItems == null || newValue.length < widget.maxSelectedItems!) {
+          newValue.add(option);
+        } else {
+          // Reached max selected items, ignore tap.
+          return;
+        }
       }
     } else {
       newValue = [option];
@@ -484,6 +503,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
           focusNode: _searchFocusNode,
           enabled: canType,
           readOnly: !canType,
+          maxLength: widget.searchMaxLength,
           style: theme.valueStyle ?? const TextStyle(fontSize: 14),
           decoration: InputDecoration(
             isDense: true,
@@ -491,6 +511,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
             contentPadding: EdgeInsets.zero,
+            counterText: '', // Hide the character counter
             hintText: hintText ??
                 ((showPlaceholder && _searchController.text.isEmpty)
                     ? (widget.label == null ? widget.placeholder : '')
@@ -753,7 +774,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
                         : null,
                 hintStyle: theme.placeholderStyle,
                 labelStyle: theme.labelStyle,
-                errorText: field.errorText,
+                errorText: widget.errorText ?? field.errorText,
                 floatingLabelStyle: theme.floatingLabelStyle,
                 filled: widget.isDisabled,
                 fillColor:
