@@ -1,6 +1,8 @@
 import 'package:retcore_select/src/config/import.dart';
+import 'package:flutter/services.dart';
 export 'src/core/theme/retcore_select_default_theme.dart';
 export 'src/core/theme/retcore_select_theme.dart';
+export 'src/core/utils/retcore_input_formatter.dart';
 
 /// A highly customizable select widget for Flutter, supporting single and multi-selection,
 /// local and API-based searching, and extensive theming.
@@ -56,6 +58,9 @@ class RetCoreSelect<T> extends StatelessWidget {
   /// The maximum number of characters allowed in the search/create field.
   final int? searchMaxLength;
 
+  /// Callback triggered when the user attempts to type more than [searchMaxLength].
+  final VoidCallback? onSearchMaxLengthExceeded;
+
   /// The maximum number of items that can be selected (only for multi-select).
   final int? maxSelectedItems;
 
@@ -77,6 +82,9 @@ class RetCoreSelect<T> extends StatelessWidget {
   /// Field Validator
   final FormFieldValidator<List<T>>? validator;
 
+  /// Optional input formatters for the text field.
+  final List<TextInputFormatter>? inputFormatters;
+
   const RetCoreSelect({
     super.key,
     required this.options,
@@ -96,6 +104,7 @@ class RetCoreSelect<T> extends StatelessWidget {
     this.onSearch,
     this.onCreateOption,
     this.searchMaxLength,
+    this.onSearchMaxLengthExceeded,
     this.maxSelectedItems,
     this.validator,
     this.value,
@@ -103,6 +112,7 @@ class RetCoreSelect<T> extends StatelessWidget {
     this.values,
     this.onValuesChanged,
     this.fixedOptions = const [],
+    this.inputFormatters,
   }) : assert(
          isMulti
              ? (values != null && onValuesChanged != null)
@@ -150,7 +160,9 @@ class RetCoreSelect<T> extends StatelessWidget {
       onSearch: onSearch,
       onCreateOption: onCreateOption,
       searchMaxLength: searchMaxLength,
+      onSearchMaxLengthExceeded: onSearchMaxLengthExceeded,
       maxSelectedItems: maxSelectedItems,
+      inputFormatters: inputFormatters,
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:retcore_select/src/config/import.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 // A builder function to create a custom chip widget.
 typedef CustomChipBuilder<T> =
@@ -37,8 +38,14 @@ class CustomSelectBase<T> extends StatefulWidget {
   /// The maximum number of characters allowed in the search/create field.
   final int? searchMaxLength;
 
+  /// Callback triggered when the user attempts to type more than [searchMaxLength].
+  final VoidCallback? onSearchMaxLengthExceeded;
+
   /// The maximum number of items that can be selected (only for multi-select).
   final int? maxSelectedItems;
+
+  /// Optional input formatters for the text field.
+  final List<TextInputFormatter>? inputFormatters;
 
   const CustomSelectBase({
     super.key,
@@ -58,12 +65,14 @@ class CustomSelectBase<T> extends StatefulWidget {
     this.isCreatable = false,
     required this.theme,
     this.chipBuilder,
+    this.validator,
     required this.onChanged,
     this.onSearch,
     this.onCreateOption,
-    this.validator,
     this.searchMaxLength,
+    this.onSearchMaxLengthExceeded,
     this.maxSelectedItems,
+    this.inputFormatters,
   });
 
   @override
@@ -490,6 +499,20 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
     );
   }
 
+  List<TextInputFormatter> get _effectiveInputFormatters {
+    final formatters = widget.inputFormatters?.toList() ?? [];
+    if (widget.searchMaxLength != null) {
+      formatters.add(TextInputFormatter.withFunction((oldValue, newValue) {
+        if (newValue.text.length > widget.searchMaxLength!) {
+          widget.onSearchMaxLengthExceeded?.call();
+          return oldValue;
+        }
+        return newValue;
+      }));
+    }
+    return formatters;
+  }
+
   Widget _buildInlineSearch({
     required bool showPlaceholder,
     String? hintText, // used in single-select to show current value as hint
@@ -503,7 +526,7 @@ class _CustomSelectBaseState<T> extends State<CustomSelectBase<T>> {
           focusNode: _searchFocusNode,
           enabled: canType,
           readOnly: !canType,
-          maxLength: widget.searchMaxLength,
+          inputFormatters: _effectiveInputFormatters,
           style: theme.valueStyle ?? const TextStyle(fontSize: 14),
           decoration: InputDecoration(
             isDense: true,

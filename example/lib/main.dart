@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:retcore_select/retcore_select.dart';
 
 void main() {
@@ -211,9 +212,9 @@ class _ExampleScreenState extends State<ExampleScreen> {
                 const SizedBox(height: 32),
 
                 // ───────────────────────────────────────────────────────
-                // 7. Live Validation (Error Message)
+                // 7. Live Validation (No Special Characters Input)
                 // ───────────────────────────────────────────────────────
-                _sectionTitle('7. Live Validation (No Special Characters)'),
+                _sectionTitle('7. Live Validation (No Special Characters Input)'),
                 RetCoreSelect<String>(
                   label: 'Type a new framework (alphabets only)',
                   options: const ['Flutter', 'React'],
@@ -222,17 +223,31 @@ class _ExampleScreenState extends State<ExampleScreen> {
                   isClearable: true,
                   value: _liveErrorValue,
                   errorText: _liveErrorText,
+                  searchMaxLength: 10,
+                  onSearchMaxLengthExceeded: () {
+                    setState(() {
+                      _liveErrorText = 'Max length reached (10)!';
+                    });
+                  },
+                  inputFormatters: [
+                    RetCoreInputFormatter(
+                      filterPattern: RegExp(r'^[a-zA-Z\s]+$'),
+                      onRejected: () {
+                        setState(() {
+                          _liveErrorText = 'Special characters and numbers are not allowed!';
+                        });
+                      },
+                      onAccepted: () {
+                        if (_liveErrorText == 'Special characters and numbers are not allowed!') {
+                          setState(() {
+                            _liveErrorText = null;
+                          });
+                        }
+                      },
+                    ),
+                  ],
                   onSearch: (query) {
-                    // Check for special characters using Regex
-                    if (query.isNotEmpty && !RegExp(r'^[a-zA-Z\s]+$').hasMatch(query)) {
-                      setState(() {
-                        _liveErrorText = 'Special characters and numbers are not allowed!';
-                      });
-                    } else if (query.length >= 10) {
-                      setState(() {
-                        _liveErrorText = 'Max length reached (10)!';
-                      });
-                    } else {
+                    if (query.length < 10 && _liveErrorText == 'Max length reached (10)!') {
                       setState(() {
                         _liveErrorText = null;
                       });
