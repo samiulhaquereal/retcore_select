@@ -23,6 +23,10 @@ class RetCoreInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
+    if (oldValue.text == newValue.text) {
+      return newValue;
+    }
+
     if (newValue.text.isEmpty || filterPattern.hasMatch(newValue.text)) {
       onAccepted?.call();
       return newValue;
