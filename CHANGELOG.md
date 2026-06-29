@@ -1,3 +1,9 @@
+## 0.1.1
+
+* **Input Formatters**: Added support for custom `inputFormatters` in the dropdown field.
+* **Max Length Callback**: Added `onSearchMaxLengthExceeded` callback for max length validation UI integration.
+* **RetCoreInputFormatter**: Added utility class for executing callbacks when inputs are rejected by pattern filters.
+
 ## 0.1.0
 
 * **React-Select Parity**: Massive UX and styling update to closely match `react-select`.
